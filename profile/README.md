@@ -2,65 +2,64 @@
 
 # Agentix
 
-**Typed rollouts for agentic RL.**
+**Sandboxed rollouts you call like typed Python.**
 
-Sandboxed execution · Structured traces · RL post-training · Evaluation
+Ship agents like software. Run them like experiments.
 
-[Docs](https://agentiix.github.io/) · [Quickstart](https://github.com/Agentiix/Agentix#quickstart) · [Cookbook](https://github.com/Agentiix/agentix-cookbook) · [RL Bridge](https://github.com/Agentiix/abridge)
+[Docs](https://agentiix.github.io/) · [Quickstart](https://agentiix.github.io/quickstart) · [Cookbook](https://github.com/Agentiix/agentix-cookbook) · [Architecture](https://agentiix.github.io/reference/architecture)
 
 </div>
 
 ---
 
-Agentix is an open-source stack for running coding agents inside isolated
-rollout containers, capturing every LLM call and tool invocation as a
-structured trace, and routing those traces to RL post-training,
-evaluation harnesses, and custom serving providers.
+Agentix is a small execution layer for agent experiments. Package an
+agent, tool, scorer, or internal workflow into a sandbox image, then call
+its Python functions from host-side trainers, evaluators, and scripts.
 
-One typed Python surface for trainers, evaluators, and agent builders.
+```python
+from agentix import RuntimeClient
+from app import run
+
+async with RuntimeClient(sandbox.runtime_url) as client:
+    result = await client.remote(run, input="hello")
+```
+
+The unit of composition is a function, not a custom runner.
+
+## Core Model
+
+- **Remote calls** run installed Python functions inside a sandbox
+  worker. Agentix derives the target from the function object, validates
+  arguments from the signature, and returns typed results.
+- **Bundles** package one Python project and its declared dependencies
+  into a deploy-ready runtime image.
+- **Deployments** start bundle images locally or through backend plugins
+  and return a `runtime_url` for `RuntimeClient`.
+
+## What This Unlocks
+
+| You have | You expose | You call |
+| --- | --- | --- |
+| Claude Code, Codex, Aider, OpenHands, or an internal agent | `async def run(...) -> RunResult` | `await client.remote(run, ...)` |
+| Shell, files, repo setup, or local tools | `async def run(command: str) -> BashResult` | `await client.remote(bash_run, ...)` |
+| SWE-bench, MLE-Bench, or an internal evaluator | `async def score(...) -> Score` | `await client.remote(score, ...)` |
+| Streaming or interactive workflows | `async def stream(...) -> AsyncIterator[Event]` | `async for event in client.remote(stream, ...)` |
 
 ## Repositories
 
-### Core
-
 | Repo | What it does |
-|---|---|
-| **[Agentix](https://github.com/Agentiix/Agentix)** | The framework — typed Python namespaces for sandbox-based agent workflows. Execution backends: `local` (Docker), `daytona`, `e2b`. |
-| **[abridge](https://github.com/Agentiix/abridge)** | Host-side bridge from agent rollouts to RL training. Taps the runtime's trace stream, correlates events by rollout, hands `Rollout`s to your trainer's sink. |
+| --- | --- |
+| [Agentix](https://github.com/Agentiix/Agentix) | Core runtime client, server, worker protocol, build CLI, and deployment plugin interface |
+| [Agentix-Runtime-Basic](https://github.com/Agentiix/Agentix-Runtime-Basic) | Sandbox primitives such as shell and file operations |
+| [Agentix-Deployment-Docker](https://github.com/Agentiix/Agentix-Deployment-Docker) | Local Docker deployment backend |
+| [Agentix-Deployment-Daytona](https://github.com/Agentiix/Agentix-Deployment-Daytona) | Hosted sandbox backend package |
+| [Agentix-Deployment-E2B](https://github.com/Agentiix/Agentix-Deployment-E2B) | Hosted sandbox backend package |
+| [agentix-cookbook](https://github.com/Agentiix/agentix-cookbook) | Working recipes for agent wrappers and benchmark scorers |
+| [abridge](https://github.com/Agentiix/abridge) | Host-side rollout-to-RL-buffer bridge |
 
-### Integrations
+## Start Here
 
-| Repo | What it does |
-|---|---|
-| **[agentix-cookbook](https://github.com/Agentiix/agentix-cookbook)** | Worked integrations: Claude Code as a remote-callable function, SWE-bench Verified scoring. |
-| **[Agentix-Agents-Hub](https://github.com/Agentiix/Agentix-Agents-Hub)** | Hub of agent closures. |
-| **[Agentix-Datasets](https://github.com/Agentiix/Agentix-Datasets)** | Dataset + verifier closures. |
-
-### Docs
-
-| Repo | What it does |
-|---|---|
-| **[Agentiix.github.io](https://github.com/Agentiix/Agentiix.github.io)** | Documentation site — [agentiix.github.io](https://agentiix.github.io/). |
-
-## A SWE-bench rollout, end to end
-
-```python
-from datasets import load_dataset
-from agentix import RuntimeClient, bash, claude_code, swebench
-
-inst = dict(load_dataset("princeton-nlp/SWE-bench_Verified", split="test")[0])
-
-async with RuntimeClient(sandbox.runtime_url) as c:
-    await c.remote(bash.run, command=f"git clone https://github.com/{inst['repo']}.git /testbed")
-    cc    = await c.remote(claude_code.run, instruction=inst["problem_statement"], workdir="/testbed")
-    diff  = await c.remote(bash.run, command="cd /testbed && git add -A && git diff --cached")
-    score = await c.remote(swebench.score, instance=inst, patch=diff.stdout)
-```
-
-Three integrations, one composition. Trade Claude Code for any other
-CLI agent, SWE-bench for any other scorer, `local` for any other
-execution backend — the call sites stay the same.
-
-## License
-
-MIT, across all repos.
+- [Read the docs](https://agentiix.github.io/)
+- [Build and call a tiny bundle](https://agentiix.github.io/quickstart)
+- [Understand remote calls](https://agentiix.github.io/concepts/remote-calls)
+- [Understand bundles](https://agentiix.github.io/concepts/bundles)
